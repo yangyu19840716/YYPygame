@@ -23,7 +23,7 @@ class Game(Singleton):
 
     def logic(self, dt):
         self.scene.update_actors(dt)
-        self.scene.update_neighbours(dt)
+        self.scene.update_neighbours()
 
     def draw(self, dt):
         for actor in self.scene.actors:

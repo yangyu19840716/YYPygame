@@ -53,9 +53,9 @@ class Grid(object):
 
     @staticmethod
     def pos_to_grid(x, y):
-        '''
+        """
             坐标转换到格子，x，y 需要是整型
-        '''
+        """
         return int(x / Grid.grid_size_w), int(y / Grid.grid_size_h)
 
 
@@ -72,6 +72,7 @@ class Scene(Singleton):
 
         self.update_neighbours = self.update_neighbours1
 
+        self.size2 = Const.VISION_SIZE * Const.VISION_SIZE
         # Grid二维数组
         self.grids = []
         for x in range(self.grid_num_w):
@@ -99,7 +100,7 @@ class Scene(Singleton):
     def update_actors(self, dt):
         # for x in range(self.grid_num_w):
         #     for y in range(self.grid_num_h):
-        #         self.grid_list[x][y].actors = []
+        #         self.grids[x][y].actors = []
 
         # 更新actor，以及grid
         for actor in self.actors:
@@ -111,7 +112,7 @@ class Scene(Singleton):
                 actor.is_nearest_neighbour = False
                 actor.grid_x, actor.grid_y = x, y
 
-    def update_neighbours1(self, dt):
+    def update_neighbours1(self):
         for x in range(self.grid_num_w):
             for y in range(self.grid_num_h):
                 grid = self.grids[x][y]
@@ -119,19 +120,23 @@ class Scene(Singleton):
                     continue
 
                 for neighbours in grid.neighbours:
-                    if len(neighbours) == 0:
+                    neighbour_actors = []
+                    for neighbour in neighbours:
+                        if len(neighbour.actors) > 0:
+                            neighbour_actors.append(neighbour)
+                    num_neighbours = len(neighbour_actors)
+                    if num_neighbours == 0:
                         continue
-                    neighbour = random.choice(neighbours)
+                    elif num_neighbours == 1:
+                        neighbour = neighbour_actors[0]
+                    else:
+                        neighbour = random.choice(neighbour_actors)
                     grid.nearest_neighbour = random.choice(neighbour.actors)
                     grid.nearest_neighbour.is_nearest_neighbour = True
                     break
 
-    def update_neighbours2(self, dt):
-        for actor in self.actors:
-            actor.action(dt)
-
+    def update_neighbours2(self):
         for actor1 in self.actors:
-            size = actor1.vision_size * actor1.vision_size
             neighbours = []
             nearest = 999999
             for actor2 in self.actors:
@@ -139,7 +144,7 @@ class Scene(Singleton):
                     continue
 
                 dis = (actor1.pos - actor2.pos).length_squared()
-                if dis <= size:
+                if dis <= self.size2:
                     neighbours.append(actor2)
 
                     if dis < nearest:
