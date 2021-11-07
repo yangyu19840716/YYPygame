@@ -1,35 +1,33 @@
 # -*- coding:utf-8 -*-
 
-from Engine import Singleton, Engine
-from Actor import Actor
-import pygame
+from Engine import Engine
+from Singleton import Singleton
+from Scene import Scene
 
 
 class Game(Singleton):
     def __init__(self):
         super(Game, self).__init__()
 
-        self.actor_num = 100
-        self.actors = []
-        self.pause = False
-
-        for i in range(self.actor_num):
-            self.actors.append(Actor())
-
         engine = Engine()
         engine.bg_color = (64, 64, 64)
-        engine.tick = self.tick
-        engine.frame_lock = 60
+        engine.logic_tick = self.logic
+        engine.draw_tick = self.draw
+        # engine.frame_lock = 120
         engine.init()
+        # engine.pause()
 
         self.run = engine.loop
 
-    def tick(self, dt):
-        for event in Engine.instance.keys_up:
-            if event.key == pygame.K_SPACE:
-                self.pause = not self.pause
+        self.scene = Scene()
 
-        for actor in self.actors:
-            if not self.pause:
-                actor.action(dt)
+    def logic(self, dt):
+        self.scene.update_actors(dt)
+        self.scene.update_neighbours(dt)
+
+    def draw(self, dt):
+        for actor in self.scene.actors:
             actor.draw()
+
+    def pick(self):
+        pass
