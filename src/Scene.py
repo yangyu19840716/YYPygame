@@ -73,6 +73,7 @@ class Scene(Singleton):
         self.update_neighbours = self.update_neighbours1
 
         self.size2 = Const.VISION_SIZE * Const.VISION_SIZE
+
         # Grid二维数组
         self.grids = []
         for x in range(self.grid_num_w):
