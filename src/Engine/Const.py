@@ -1,5 +1,6 @@
 # -*- coding:utf-8 -*-
 
+import os
 import math
 
 DOUBLE_PI = 2 * math.pi
@@ -22,8 +23,7 @@ MAX_SPEED = 300.0
 ACTOR_NUM = 100
 VISION_SIZE = 10.0
 
+ROOT_PATH = os.getcwd() + '/../'
+RES_PATH = ROOT_PATH + 'res'
+TMP_PATH = RES_PATH + 'tmp'
 
-def init(engine):
-    global ENGINE, SCREEN, WIDTH, HEIGHT, SCREEN_W, SCREEN_H, CENTER_X, CENTER_Y
-    ENGINE = engine
-    SCREEN = engine.screen
