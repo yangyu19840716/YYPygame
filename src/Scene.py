@@ -2,67 +2,18 @@
 
 import random
 
-from Engine import Const
+from Core import Const
 from Actor import Actor
-from Engine.Singleton import Singleton
-
-
-class Grid(object):
-	# 格子大小使用整型，提高格子计算效率
-	grid_size_w = Const.GRID_SIZE
-	grid_size_h = Const.GRID_SIZE
-	gird_in_vision = int(Const.VISION_SIZE / Const.GRID_SIZE) + 1
-
-	def __init__(self):
-		self.index_x = None
-		self.index_y = None
-
-		self.actors = []
-		self.neighbours = []  # [[grid list 1], [grid list 2], ...] index 是与当前Grid的距离
-		self.nearest_neighbour = None
-
-	def init_neighbours(self, x, y):
-		grid_in_vision = Grid.gird_in_vision
-		self.index_x, self.index_y = x, y
-		grid_num_w, grid_num_h = Scene.instance.grid_num_w, Scene.instance.grid_num_h
-		neighbours = []
-		for i in range(1, grid_in_vision):
-			for xx in range(-x, x + 1):
-				xxx = x + xx
-				if xxx < 0 or xxx >= grid_num_w:
-					continue
-
-				yyy = y - i
-				if yyy >= 0:
-					neighbours.append(Scene.instance.get_grid(xxx, yyy))
-				yyy = y + i
-				if yyy < grid_num_h:
-					neighbours.append(Scene.instance.get_grid(xxx, yyy))
-			for yy in range(-i + 1, i):
-				yyy = y + yy
-				if yyy < 0 or yyy >= grid_num_h:
-					continue
-
-				xxx = x - i
-				if xxx >= 0:
-					neighbours.append(Scene.instance.get_grid(xxx, yyy))
-				xxx = x + i
-				if xxx < grid_num_w:
-					neighbours.append(Scene.instance.get_grid(xxx, yyy))
-
-			self.neighbours.append(neighbours)
-
-	@staticmethod
-	def pos_to_grid(x, y):
-		"""
-			坐标转换到格子，x，y 需要是整型
-		"""
-		return int(x / Grid.grid_size_w), int(y / Grid.grid_size_h)
+from Core.Singleton import Singleton
+from Core.Engine import Engine, DebugModule
+from Grid import Grid
 
 
 class Scene(Singleton):
 	def __init__(self):
 		super(Scene, self).__init__()
+
+		Const.SCENE = self
 
 		self.map_w = Const.WIDTH
 		self.map_h = Const.HEIGHT
@@ -71,9 +22,12 @@ class Scene(Singleton):
 		self.grid_num_w = int(Const.WIDTH / Const.GRID_SIZE) + 1
 		self.grid_num_h = int(Const.HEIGHT / Const.GRID_SIZE) + 1
 
-		self.update_neighbours = self.update_neighbours1
-
 		self.size2 = Const.VISION_SIZE * Const.VISION_SIZE
+
+		self.picked_actor = None
+		self.picked_grid = None
+
+		self.grid_to_update = []
 
 		# Grid二维数组
 		self.grids = []
@@ -85,6 +39,7 @@ class Scene(Singleton):
 		for x in range(self.grid_num_w):
 			for y in range(self.grid_num_h):
 				grid = self.grids[x][y]
+				self.grid_to_update.append(grid)
 				grid.init_neighbours(x, y)
 
 		self.actor_num = Const.ACTOR_NUM
@@ -94,63 +49,125 @@ class Scene(Singleton):
 
 		for actor in self.actors:
 			actor.grid_x, actor.grid_y = Grid.pos_to_grid(actor.pos_x, actor.pos_y)
-			self.grids[actor.grid_x][actor.grid_y].actors.append(actor)
+			grid = self.get_grid(actor.grid_x, actor.grid_y)
+			grid.actors.append(actor)
 
 	def get_grid(self, index_x, index_y):
 		return self.grids[index_x][index_y]
 
-	def update_actors(self, dt):
-		# for x in range(self.grid_num_w):
-		#     for y in range(self.grid_num_h):
-		#         self.grids[x][y].actors = []
+	def update(self):
+		self.update_actors()
+		self.update_neighbours()
 
-		# 更新actor，以及grid
+	def update_actors(self):
+		dt = Engine.instance.frame_time
+		# 更新actor
 		for actor in self.actors:
-			actor.action(dt)
+			actor.update(dt)
+			if not actor.dirty:
+				continue
+
 			x, y = int(actor.pos_x / Grid.grid_size_w), int(actor.pos_y / Grid.grid_size_h)
 			if actor.grid_x != x or actor.grid_y != y:
-				self.grids[actor.grid_x][actor.grid_y].actors.remove(actor)
-				self.grids[x][y].actors.append(actor)
-				actor.is_nearest_neighbour = False
+				grid = self.grids[actor.grid_x][actor.grid_y]
+				grid.actors.remove(actor)
+				if not grid.dirty:
+					self.grid_to_update.append(grid)
+					grid.dirty = True
+
+				for follower in actor.followers:
+					if not follower.leader_actor:
+						continue
+
+					follower.leader_actor.nearest_neighbour = None
+					if follower.dirty:
+						continue
+
+					follower.dirty = True
+					self.grid_to_update.append(follower)
+				actor.followers = []
+
+				if actor.is_leader:
+					grid.leader_actor = None
+					actor.is_leader = False
+
+				grid = self.grids[x][y]
+				grid.actors.append(actor)
+				if not grid.dirty:
+					self.grid_to_update.append(grid)
+					grid.dirty = True
+
 				actor.grid_x, actor.grid_y = x, y
 
-	def update_neighbours1(self):
-		for x in range(self.grid_num_w):
-			for y in range(self.grid_num_h):
-				grid = self.grids[x][y]
-				if grid.nearest_neighbour and grid.nearest_neighbour.is_nearest_neighbour:
-					continue
+			actor.dirty = False
 
-				for neighbours in grid.neighbours:
-					neighbour_actors = []
-					for neighbour in neighbours:
-						if len(neighbour.actors) > 0:
-							neighbour_actors.append(neighbour)
-					num_neighbours = len(neighbour_actors)
-					if num_neighbours == 0:
-						continue
-					elif num_neighbours == 1:
-						neighbour = neighbour_actors[0]
+	def update_neighbours(self):
+		grid_to_update = []
+		for grid in self.grid_to_update:
+			actor_num = len(grid.actors)
+			if actor_num == 0:
+				grid.leader_actor = None
+				grid.dirty = False
+				continue
+
+			actor = None
+			if not grid.leader_actor:
+				index = random.choice(range(actor_num))
+				grid.leader_actor = grid.actors[index]
+				grid.leader_actor.is_leader = True
+				grid.leader_actor.nearest_neighbour = None
+
+				if actor_num > 1:
+					idx = random.choice(range(actor_num - 1))
+					if idx == index:
+						actor = grid.actors[-1]
 					else:
-						neighbour = random.choice(neighbour_actors)
-					grid.nearest_neighbour = random.choice(neighbour.actors)
-					grid.nearest_neighbour.is_nearest_neighbour = True
-					break
+						actor = grid.actors[idx]
 
-	def update_neighbours2(self):
-		for actor1 in self.actors:
-			neighbours = []
-			nearest = 999999
-			for actor2 in self.actors:
-				if actor1 is actor2:
-					continue
+			if not actor:
+				actor = grid.get_nearest_grid_actor()
 
-				dis = (actor1.pos - actor2.pos).length_squared()
-				if dis <= self.size2:
-					neighbours.append(actor2)
+			if actor:
+				grid.leader_actor.nearest_neighbour = actor
+				actor.followers.append(grid)
+				grid.dirty = False
+			else:
+				grid_to_update.append(grid)
 
-					if dis < nearest:
-						nearest = dis
-						actor1.nearest_neighbour = actor2
+		DebugModule and DebugModule.DebugDraw.add_dirty_grid(self.grid_to_update)
+		self.grid_to_update = grid_to_update
 
-			actor1.neighbours = neighbours
+	def pick(self):
+		if not Engine.instance.is_pause:
+			return
+
+		if self.picked_actor:
+			self.picked_actor.unpick()
+			self.picked_actor = None
+
+		if self.picked_grid:
+			self.picked_grid.unpick()
+			self.picked_grid = None
+
+		pos_x, pos_y = Engine.instance.mouse_end_pos
+		for actor in self.actors:
+			if actor.in_actor(pos_x, pos_y):
+				actor.pick()
+				self.picked_actor = actor
+				break
+
+		if self.picked_actor:
+			return
+
+		index_x, index_y = Grid.pos_to_grid(pos_x, pos_y)
+		grid = self.get_grid(index_x, index_y)
+		grid.pick()
+		self.picked_grid = grid
+
+	def draw(self):
+		DebugModule and DebugModule.DebugDraw.show_grid(self, Grid.grid_size_w, Grid.grid_size_h)
+
+		for actor in self.actors:
+			actor.draw()
+
+		DebugModule and DebugModule.DebugDraw.show_neighbours(self.picked_actor)
