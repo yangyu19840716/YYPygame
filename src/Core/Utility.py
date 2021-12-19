@@ -10,3 +10,9 @@ def rand_color():
 	for i in range(3):
 		color[i] = random.randint(color_min, color_max)
 	return color
+
+
+def sorted_dict_by_key(unsort_dict):
+	if not unsort_dict:
+		return unsort_dict
+	return [(k, unsort_dict[k]) for k in sorted(unsort_dict.keys())]

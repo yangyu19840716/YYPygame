@@ -94,7 +94,7 @@ class Actor(object):
 		grid = Const.SCENE.get_grid(self.grid_x, self.grid_y)
 		neighbours = []
 		for neighbour_grids in grid.neighbours:
-			for neighbour_grid in neighbour_grids:
+			for neighbour_grid in neighbour_grids[1]:
 				neighbours.extend(neighbour_grid.actors)
 
 		if self.is_leader:

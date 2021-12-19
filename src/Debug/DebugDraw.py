@@ -64,7 +64,7 @@ def show_neighbours(actor):
 
 # ======================================= show_grid ==========================================
 GRID_LINE_COLOR = (44, 44, 188)
-NEIGHBOUR_GRID_COLOR = (40, 88, 88)
+NEIGHBOUR_GRID_COLOR = (222, 88, 88)
 DIRTY_GRID_COLOR = (222, 22, 22)
 DIRTY_GRID_FRAME = []
 FLUSH_TIME = 30
@@ -98,11 +98,11 @@ def show_vision_grid(scene):
 		Graph.draw_rect(
 			grid.left_top_pos_x, grid.left_top_pos_y, grid.grid_size_h, grid.grid_size_w, color=NEIGHBOUR_GRID_COLOR)
 
-		i = 1
+		i = total = len(grid.neighbours)
 		for neighbours in grid.neighbours:
-			i += 1
-			color = (NEIGHBOUR_GRID_COLOR[0] + 20 * i, NEIGHBOUR_GRID_COLOR[1], NEIGHBOUR_GRID_COLOR[2])
-			for neighbour in neighbours:
+			i -= 1.0
+			color = (NEIGHBOUR_GRID_COLOR[0] * (i / total), NEIGHBOUR_GRID_COLOR[1], NEIGHBOUR_GRID_COLOR[2])
+			for neighbour in neighbours[1]:
 				Graph.draw_rect(
 					neighbour.left_top_pos_x, neighbour.left_top_pos_y, neighbour.grid_size_h, neighbour.grid_size_w,
 					color=color)
@@ -123,5 +123,5 @@ def show_grid(scene, grid_size_w, grid_size_h):
 		return
 
 	show_grid_line(scene, grid_size_w, grid_size_h)
-	# show_vision_grid(scene)
+	show_vision_grid(scene)
 	# show_dirty_grid()

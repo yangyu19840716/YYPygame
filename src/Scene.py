@@ -34,13 +34,15 @@ class Scene(Singleton):
 		for x in range(self.grid_num_w):
 			self.grids.append([])
 			for y in range(self.grid_num_h):
-				self.grids[x].append(Grid())
+				grid = Grid()
+				grid.init_pos(x, y)
+				self.grids[x].append(grid)
 
 		for x in range(self.grid_num_w):
 			for y in range(self.grid_num_h):
 				grid = self.grids[x][y]
+				grid.init_neighbours()
 				self.grid_to_update.append(grid)
-				grid.init_neighbours(x, y)
 
 		self.actor_num = Const.ACTOR_NUM
 		self.actors = []

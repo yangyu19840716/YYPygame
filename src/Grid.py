@@ -1,7 +1,10 @@
 # -*- coding:utf-8 -*-
 
-from Core import Const
+from Core import Const, Utility
 import random
+
+
+MERGE_PRECISION = 0.01
 
 
 class Grid(object):
@@ -15,19 +18,25 @@ class Grid(object):
 		self.index_y = None
 		self.left_top_pos_x = self.left_top_pos_y = 0
 		self.right_bottom_pos_x = self.right_bottom_pos_y = 0
+		self.pos_x = self.pos_y = 0
 		self.actors = []
-		self.neighbours = []  		# [[grid list 1], [grid list 2], ...] neighbour按距离分组, 以后改为dict
+		self.neighbours = []  		# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
 		self.leader_actor = None    # actor, nearest_neighbour 首选
 		self.dirty = True			# actors 改变
 		self.picked = False
 
-	def init_neighbours(self, x, y):
-		grid_in_vision = Grid.gird_in_vision
+		self.init_neighbours = self.init_neighbours_round
+
+	def init_pos(self, x, y):
 		self.index_x, self.index_y = x, y
 		self.left_top_pos_x, self.left_top_pos_y = x * Grid.grid_size_w, y * Grid.grid_size_h
 		self.right_bottom_pos_x, self.right_bottom_pos_y = (x + 1) * Grid.grid_size_w, (y + 1) * Grid.grid_size_h
+		self.pos_x, self.pos_y = (x + 0.5) * Grid.grid_size_w, (y + 0.5) * Grid.grid_size_w,
+
+	def init_neighbours_square(self):
+		x, y = self.index_x, self.index_y
 		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
-		for i in range(1, grid_in_vision):
+		for i in range(1, Grid.gird_in_vision):
 			neighbours = []
 			for xx in range(-i, i + 1):
 				xxx = x + xx
@@ -56,7 +65,40 @@ class Grid(object):
 					grid = Const.SCENE.get_grid(xxx, yyy)
 					neighbours.append(grid)
 
-			self.neighbours.append(neighbours)
+			self.neighbours.append((i, neighbours))
+
+	def init_neighbours_round(self):
+		scene = Const.SCENE
+		vision_size = Const.VISION_SIZE
+		grid_in_vision = Grid.gird_in_vision
+		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
+		vision2 = vision_size * vision_size
+		visions = range(-grid_in_vision + 1, grid_in_vision)
+		merge_precision = 1.0 / MERGE_PRECISION
+		neighbours = {}
+		for i in visions:
+			for j in visions:
+				if i == 0 and j == 0:
+					continue
+
+				x = self.index_x + i
+				y = self.index_y + j
+				if x < 0 or y < 0 or x >= grid_num_w or y >= grid_num_h:
+					continue
+
+				grid = scene.get_grid(x, y)
+				dx = grid.pos_x - self.pos_x
+				dy = grid.pos_y - self.pos_y
+				dis2 = dx * dx + dy * dy
+				if dis2 <= vision2:
+					key_dis = int(dis2 * merge_precision)
+					neighbour_list = neighbours.get(key_dis, None)
+					if neighbour_list:
+						neighbour_list.append(grid)
+					else:
+						neighbours[key_dis] = [grid]
+
+		self.neighbours = Utility.sorted_dict_by_key(neighbours)
 
 	@staticmethod
 	def pos_to_grid(x, y):
@@ -83,7 +125,7 @@ class Grid(object):
 	def get_nearest_grid_actor(self):
 		for neighbours in self.neighbours:
 			neighbour_actors = []
-			for neighbour in neighbours:
+			for neighbour in neighbours[1]:
 				if neighbour.leader_actor:
 					neighbour_actors.append(neighbour.leader_actor)
 			if neighbour_actors:

@@ -18,8 +18,8 @@ SCENE = None
 GAME = None
 
 ACTOR_NUM = 200
-VISION_SIZE = 50.0
+VISION_SIZE = 60.0
 
-ROOT_PATH = os.getcwd() + '/../'
+ROOT_PATH = os.getcwd() + '/'
 RES_PATH = ROOT_PATH + 'res'
-TMP_PATH = RES_PATH + 'tmp'
+TMP_PATH = ROOT_PATH + 'tmp'
