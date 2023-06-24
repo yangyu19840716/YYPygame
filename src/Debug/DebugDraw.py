@@ -46,17 +46,13 @@ TARGET_COLOR = (22, 22, 222)
 def show_neighbours(actor):
 	Graph.draw_circle(actor.actor_pos, Const.VISION_SIZE, color=VISION_SIZE_COLOR)
 
-	neighbours, nearest = actor.get_neighbours_from_grid()
+	neighbours = actor.get_neighbours_from_grid()
+	if neighbours:
+		for neighbour in neighbours[1:]:
+			Graph.draw_line(actor.actor_pos, neighbour.actor_pos, 2, NEIGHBOURS_COLOR)
 
-	# for neighbour in neighbours:
-	# 	if neighbour is nearest:
-	# 		continue
-	#
-	# 	Graph.draw_line(actor.actor_pos, neighbour.actor_pos, 2, NEIGHBOURS_COLOR)
-
-	# 最后画这个防止被覆盖
-	if nearest:
-		Graph.draw_line(actor.actor_pos, nearest.actor_pos, 2, NEAREST_NEIGHBOUR_COLOR)
+		# 最后画这个防止被覆盖
+		Graph.draw_line(actor.actor_pos, neighbours[0].actor_pos, 2, NEAREST_NEIGHBOUR_COLOR)
 
 
 def show_target(actor):

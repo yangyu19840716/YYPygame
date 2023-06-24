@@ -21,8 +21,8 @@ class Grid:
 		self.grid_pos = Vector2()
 		self.actors_in_grid = []
 		self.grid_neighbours = []  	# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
-		self.leader_actor = None    # actor, nearest_neighbour 首选
-		self.dirty = True			# actors 改变
+		self.leader_actor = None    # actor
+		self.grid_dirty = True		# actors 改变时 grid dirty
 		self.picked = False
 
 		self.init_neighbours = self.init_neighbours_round
@@ -121,10 +121,7 @@ class Grid:
 		for actor in self.actors_in_grid:
 			actor.draw_color = actor.actor_color
 
-	def get_nearest_actor(self):
-		if len(self.actors_in_grid) > 1:
-			return random.choice(self.actors_in_grid[1:])
-
+	def get_nearest_actor_in_neighbour_grid(self):
 		for neighbours in self.grid_neighbours:
 			neighbour_actors = []
 			for neighbour in neighbours[1]:

@@ -63,13 +63,13 @@ class Scene(Singleton):
 
 	def update(self):
 		self.update_actors()
-		self.update_neighbours()
+		self.update_grids()
 
 	def update_actors(self):
 		# 更新 actor
 		for actor in self.actors:
 			actor.update()
-			if not actor.dirty:
+			if not actor.actor_dirty:
 				continue
 
 			x, y = int(actor.actor_pos.x / Grid.grid_size_w), int(actor.actor_pos.y / Grid.grid_size_h)
@@ -77,70 +77,54 @@ class Scene(Singleton):
 			new_grid = self.grids[x][y]
 			if grid != new_grid:
 				grid.actors_in_grid.remove(actor)
-				if not grid.dirty:
+				if not grid.grid_dirty:
 					self.grid_to_update.append(grid)
-					grid.dirty = True
+					grid.grid_dirty = True
 
-				for follower in actor.followers:
-					if not follower.leader_actor:
-						continue
-
-					follower.leader_actor.nearest_neighbour = None
-					if follower.dirty:
-						continue
-
-					follower.dirty = True
-					self.grid_to_update.append(follower)
-				actor.followers = []
+				# for follower in actor.grid_followers:
+				# 	if not follower.leader_actor:
+				# 		continue
+				#
+				# 	follower.leader_actor.nearest_neighbour = None
+				# 	if follower.dirty:
+				# 		continue
+				#
+				# 	follower.dirty = True
+				# 	self.grid_to_update.append(follower)
+				# actor.grid_followers = []
 
 				if actor.is_leader:
 					grid.leader_actor = None
-					actor.become_a_leader(False)
+					actor.is_leader = False
 
 				new_grid.actors_in_grid.append(actor)
-				if not new_grid.dirty:
+				if not new_grid.grid_dirty:
 					self.grid_to_update.append(new_grid)
-					new_grid.dirty = True
+					new_grid.grid_dirty = True
 
 				actor.grid = new_grid
 
-			actor.dirty = False
+			actor.actor_dirty = False
 
-	def update_neighbours(self):
-		grid_to_update = []
+	def update_grids(self):
 		for grid in self.grid_to_update:
+			grid.grid_dirty = False
 			actor_num = len(grid.actors_in_grid)
 			if actor_num == 0:
 				grid.leader_actor = None
-				grid.dirty = False
 				continue
 
-			actor = None
 			if not grid.leader_actor:
-				index = random.choice(range(actor_num))
-				grid.leader_actor = grid.actors_in_grid[index]
-				grid.leader_actor.become_a_leader(True)
-				grid.leader_actor.nearest_neighbour = None
-
 				if actor_num > 1:
-					idx = random.choice(range(actor_num - 1))
-					if idx == index:
-						actor = grid.actors_in_grid[-1]
-					else:
-						actor = grid.actors_in_grid[idx]
+					idx = random.choice(range(actor_num))
+					if idx != 0:
+						grid.actors_in_grid[0], grid.actors_in_grid[idx] = grid.actors_in_grid[idx], grid.actors_in_grid[0]
 
-			if not actor:
-				actor = grid.get_nearest_actor()
-
-			if actor:
-				grid.leader_actor.nearest_neighbour = actor
-				actor.followers.append(grid)
-				grid.dirty = False
-			else:
-				grid_to_update.append(grid)
+				grid.leader_actor = grid.actors_in_grid[0]
+				grid.leader_actor.is_leader = True
 
 		DebugModule and DebugModule.DebugDraw.add_dirty_grid(self.grid_to_update)
-		self.grid_to_update = grid_to_update
+		self.grid_to_update = []
 
 	def pick(self):
 		if not Engine.instance.is_pause:

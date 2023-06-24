@@ -17,7 +17,7 @@ SPEED_ACC_RATE = 50  				# 单位：pixel / s2
 
 class Actor:
 	ACTOR_ID = 0
-	RAND_SPEED_DIR = False
+	# RAND_SPEED_DIR = False
 
 	def __init__(self):
 		self.name = Actor.ACTOR_ID
@@ -37,11 +37,11 @@ class Actor:
 
 		self.rules = []
 		self.actor_neighbours = []
-		self.nearest_neighbour = None
-		self.followers = []  		# grid list, 被 leader 指定为 nearest_neighbour, 改变 grid 的时候重置
-		self.is_leader = False  	# 被 grid 指定为 leader_actor, 改变 grid 的时候重置
+		self.my_leader = None				# 通常为
+		# self.grid_followers = []  		# grid list, 被 leader 指定为 nearest_neighbour, 改变 grid 的时候重置
+		self.is_leader = False  			# 被 grid 指定为 leader_actor, 改变 grid 的时候重置
 		self.grid = None
-		self.dirty = True  			# 位置改变会 dirty
+		self.actor_dirty = True  			# 位置改变会 dirty
 		self.picked = False
 		self.draw_pos = Vector2()
 		self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y
@@ -125,11 +125,13 @@ class Actor:
 		else:
 			self.actor_speed += SPEED_ACC_RATE * Const.ENGINE.frame_time
 
-		# self.speed += random.uniform(0, SPEED_ACC_RATE * dt)
 		if self.actor_speed > MAX_SPEED:
 			self.actor_speed = MAX_SPEED
 
 	def update(self):
+		if self.target_pos is None:
+			return
+
 		dt = Const.ENGINE.frame_time
 
 		self.actor_pos.x = self.actor_pos.x + self.actor_speed_dir.x * self.actor_speed * dt
@@ -147,7 +149,7 @@ class Actor:
 			# self.speed_dir_n.x = self.speed_dir_n.y = 0
 			self.actor_speed = 0
 			self.target_pos = None
-			self.dirty = True
+			self.actor_dirty = True
 
 			self.rand_target()
 			return
@@ -163,12 +165,12 @@ class Actor:
 
 		if d2 > 0.5:
 			# 小于一个像素不移动
-			self.dirty = True
 			self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y
+			self.actor_dirty = True
 
 		if dis2 > 0:
-			if Actor.RAND_SPEED_DIR:
-				self.rand_speed(target_dir)
+			# if Actor.RAND_SPEED_DIR:
+			# 	self.rand_speed(target_dir)
 			self.update_speed(dis2)
 
 	def in_actor(self, x, y):
@@ -177,9 +179,6 @@ class Actor:
 			return True
 		else:
 			return False
-
-	def become_a_leader(self, is_leader):
-		self.is_leader = is_leader
 
 	def pick(self):
 		self.picked = True
@@ -199,11 +198,4 @@ class Actor:
 			for neighbour_grid in neighbour_grids[1]:
 				neighbours.extend(neighbour_grid.actors_in_grid)
 
-		return neighbours, self.get_nearest_from_grid()
-
-	def get_nearest_from_grid(self):
-		if self.is_leader:
-			nearest = self.nearest_neighbour
-		else:
-			nearest = self.grid.leader_actor
-		return nearest
+		return neighbours
