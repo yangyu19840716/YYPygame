@@ -6,8 +6,8 @@ import cProfile
 from Core import Const
 
 
-class Profiler(object):
-	def __init__(self):
+class Profiler:
+	def __init__(self, label='NoLabel'):
 		self.saved_dir = Const.ROOT_PATH + 'tmp/PythonProfiling/'
 		if not os.path.exists(self.saved_dir):
 			os.makedirs(self.saved_dir)
@@ -21,7 +21,7 @@ class Profiler(object):
 		self.cost_ts = 0
 		self.can_dump = False
 
-		self.label = 'NoLabel'
+		self.label = label
 
 	def reset_states(self):
 		self.is_profiling = False

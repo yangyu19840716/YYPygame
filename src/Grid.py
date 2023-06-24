@@ -1,26 +1,26 @@
 # -*- coding:utf-8 -*-
 
-from Core import Const, Utility
 import random
+from Core import Const, Utility
+from Core.Math import Vector2
 
 
 MERGE_PRECISION = 0.01
 
 
-class Grid(object):
+class Grid:
 	# 格子大小使用整型，提高格子计算效率
 	grid_size_w = Const.GRID_SIZE
 	grid_size_h = Const.GRID_SIZE
-	gird_in_vision = int(Const.VISION_SIZE / Const.GRID_SIZE) + 1
 
 	def __init__(self):
 		self.index_x = None
 		self.index_y = None
-		self.left_top_pos_x = self.left_top_pos_y = 0
-		self.right_bottom_pos_x = self.right_bottom_pos_y = 0
-		self.pos_x = self.pos_y = 0
-		self.actors = []
-		self.neighbours = []  		# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
+		self.left_top = Vector2()
+		self.right_bottom = Vector2()
+		self.grid_pos = Vector2()
+		self.actors_in_grid = []
+		self.grid_neighbours = []  	# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
 		self.leader_actor = None    # actor, nearest_neighbour 首选
 		self.dirty = True			# actors 改变
 		self.picked = False
@@ -29,14 +29,15 @@ class Grid(object):
 
 	def init_pos(self, x, y):
 		self.index_x, self.index_y = x, y
-		self.left_top_pos_x, self.left_top_pos_y = x * Grid.grid_size_w, y * Grid.grid_size_h
-		self.right_bottom_pos_x, self.right_bottom_pos_y = (x + 1) * Grid.grid_size_w, (y + 1) * Grid.grid_size_h
-		self.pos_x, self.pos_y = (x + 0.5) * Grid.grid_size_w, (y + 0.5) * Grid.grid_size_w,
+		self.left_top.x, self.left_top.y = x * Grid.grid_size_w, y * Grid.grid_size_h
+		self.right_bottom.x, self.right_bottom.y = (x + 1) * Grid.grid_size_w, (y + 1) * Grid.grid_size_h
+		self.grid_pos.x, self.grid_pos.y = (x + 0.5) * Grid.grid_size_w, (y + 0.5) * Grid.grid_size_w,
 
 	def init_neighbours_square(self):
 		x, y = self.index_x, self.index_y
 		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
-		for i in range(1, Grid.gird_in_vision):
+		gird_in_vision = int(Const.VISION_SIZE / Const.GRID_SIZE) + 1
+		for i in range(1, gird_in_vision):
 			neighbours = []
 			for xx in range(-i, i + 1):
 				xxx = x + xx
@@ -45,11 +46,11 @@ class Grid(object):
 
 				yyy = y - i
 				if yyy >= 0:
-					grid = Const.SCENE.get_grid(xxx, yyy)
+					grid = Const.SCENE.grids[xxx][yyy]
 					neighbours.append(grid)
 				yyy = y + i
 				if yyy < grid_num_h:
-					grid = Const.SCENE.get_grid(xxx, yyy)
+					grid = Const.SCENE.grids[xxx][yyy]
 					neighbours.append(grid)
 			for yy in range(-i + 1, i):
 				yyy = y + yy
@@ -58,19 +59,19 @@ class Grid(object):
 
 				xxx = x - i
 				if xxx >= 0:
-					grid = Const.SCENE.get_grid(xxx, yyy)
+					grid = Const.SCENE.grids[xxx][yyy]
 					neighbours.append(grid)
 				xxx = x + i
 				if xxx < grid_num_w:
-					grid = Const.SCENE.get_grid(xxx, yyy)
+					grid = Const.SCENE.grids[xxx][yyy]
 					neighbours.append(grid)
 
-			self.neighbours.append((i, neighbours))
+			self.grid_neighbours.append((i, neighbours))
 
 	def init_neighbours_round(self):
 		scene = Const.SCENE
 		vision_size = Const.VISION_SIZE
-		grid_in_vision = Grid.gird_in_vision
+		grid_in_vision = int(vision_size / Const.GRID_SIZE) + 1
 		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
 		vision2 = vision_size * vision_size
 		visions = range(-grid_in_vision + 1, grid_in_vision)
@@ -86,10 +87,8 @@ class Grid(object):
 				if x < 0 or y < 0 or x >= grid_num_w or y >= grid_num_h:
 					continue
 
-				grid = scene.get_grid(x, y)
-				dx = grid.pos_x - self.pos_x
-				dy = grid.pos_y - self.pos_y
-				dis2 = dx * dx + dy * dy
+				grid = scene.grids[x][y]
+				dis2 = (grid.grid_pos - self.grid_pos).length_squared()
 				if dis2 <= vision2:
 					key_dis = int(dis2 * merge_precision)
 					neighbour_list = neighbours.get(key_dis, None)
@@ -98,7 +97,7 @@ class Grid(object):
 					else:
 						neighbours[key_dis] = [grid]
 
-		self.neighbours = Utility.sorted_dict_by_key(neighbours)
+		self.grid_neighbours = Utility.sorted_dict_by_key(neighbours)
 
 	@staticmethod
 	def pos_to_grid(x, y):
@@ -108,22 +107,25 @@ class Grid(object):
 		return int(x / Grid.grid_size_w), int(y / Grid.grid_size_h)
 
 	def in_grid(self, x, y):
-		return self.left_top_pos_x < x < self.right_bottom_pos_x and self.left_top_pos_y < y < self.right_bottom_pos_y
+		return self.left_top.x < x < self.right_bottom.x and self.left_top.y < y < self.right_bottom.y
 
 	def pick(self):
 		self.picked = True
 
-		for actor in self.actors:
+		for actor in self.actors_in_grid:
 			actor.draw_color = Const.WHITE
 
 	def unpick(self):
 		self.picked = False
 
-		for actor in self.actors:
-			actor.draw_color = actor.color
+		for actor in self.actors_in_grid:
+			actor.draw_color = actor.actor_color
 
-	def get_nearest_grid_actor(self):
-		for neighbours in self.neighbours:
+	def get_nearest_actor(self):
+		if len(self.actors_in_grid) > 1:
+			return random.choice(self.actors_in_grid[1:])
+
+		for neighbours in self.grid_neighbours:
 			neighbour_actors = []
 			for neighbour in neighbours[1]:
 				if neighbour.leader_actor:

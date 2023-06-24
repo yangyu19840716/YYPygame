@@ -7,6 +7,8 @@ from Actor import Actor
 from Core.Singleton import Singleton
 from Core.Engine import Engine, DebugModule
 from Grid import Grid
+import Rule
+# from RuleManager import RuleManager
 
 
 class Scene(Singleton):
@@ -18,18 +20,16 @@ class Scene(Singleton):
 		self.map_w = Const.WIDTH
 		self.map_h = Const.HEIGHT
 
-		# 为了让格子大小是整型， 多加了一行一列
+		# 为了让格子大小是整型，多加了一行一列
 		self.grid_num_w = int(Const.WIDTH / Const.GRID_SIZE) + 1
 		self.grid_num_h = int(Const.HEIGHT / Const.GRID_SIZE) + 1
-
-		self.size2 = Const.VISION_SIZE * Const.VISION_SIZE
 
 		self.picked_actor = None
 		self.picked_grid = None
 
 		self.grid_to_update = []
 
-		# Grid二维数组
+		# Grid 二维数组
 		self.grids = []
 		for x in range(self.grid_num_w):
 			self.grids.append([])
@@ -47,12 +47,16 @@ class Scene(Singleton):
 		self.actor_num = Const.ACTOR_NUM
 		self.actors = []
 		for i in range(self.actor_num):
-			self.actors.append(Actor())
+			actor = Actor()
+			# actor.rules.append(Rule.keep_distance)
+			actor.rules.append(Rule.move_to_target)
+			self.actors.append(actor)
 
 		for actor in self.actors:
-			actor.grid_x, actor.grid_y = Grid.pos_to_grid(actor.pos_x, actor.pos_y)
-			grid = self.get_grid(actor.grid_x, actor.grid_y)
-			grid.actors.append(actor)
+			grid_x, grid_y = Grid.pos_to_grid(actor.actor_pos.x, actor.actor_pos.y)
+			grid = self.grids[grid_x][grid_y]
+			grid.actors_in_grid.append(actor)
+			actor.grid = grid
 
 	def get_grid(self, index_x, index_y):
 		return self.grids[index_x][index_y]
@@ -62,17 +66,17 @@ class Scene(Singleton):
 		self.update_neighbours()
 
 	def update_actors(self):
-		dt = Engine.instance.frame_time
-		# 更新actor
+		# 更新 actor
 		for actor in self.actors:
-			actor.update(dt)
+			actor.update()
 			if not actor.dirty:
 				continue
 
-			x, y = int(actor.pos_x / Grid.grid_size_w), int(actor.pos_y / Grid.grid_size_h)
-			if actor.grid_x != x or actor.grid_y != y:
-				grid = self.grids[actor.grid_x][actor.grid_y]
-				grid.actors.remove(actor)
+			x, y = int(actor.actor_pos.x / Grid.grid_size_w), int(actor.actor_pos.y / Grid.grid_size_h)
+			grid = actor.grid
+			new_grid = self.grids[x][y]
+			if grid != new_grid:
+				grid.actors_in_grid.remove(actor)
 				if not grid.dirty:
 					self.grid_to_update.append(grid)
 					grid.dirty = True
@@ -91,22 +95,21 @@ class Scene(Singleton):
 
 				if actor.is_leader:
 					grid.leader_actor = None
-					actor.is_leader = False
+					actor.become_a_leader(False)
 
-				grid = self.grids[x][y]
-				grid.actors.append(actor)
-				if not grid.dirty:
-					self.grid_to_update.append(grid)
-					grid.dirty = True
+				new_grid.actors_in_grid.append(actor)
+				if not new_grid.dirty:
+					self.grid_to_update.append(new_grid)
+					new_grid.dirty = True
 
-				actor.grid_x, actor.grid_y = x, y
+				actor.grid = new_grid
 
 			actor.dirty = False
 
 	def update_neighbours(self):
 		grid_to_update = []
 		for grid in self.grid_to_update:
-			actor_num = len(grid.actors)
+			actor_num = len(grid.actors_in_grid)
 			if actor_num == 0:
 				grid.leader_actor = None
 				grid.dirty = False
@@ -115,19 +118,19 @@ class Scene(Singleton):
 			actor = None
 			if not grid.leader_actor:
 				index = random.choice(range(actor_num))
-				grid.leader_actor = grid.actors[index]
-				grid.leader_actor.is_leader = True
+				grid.leader_actor = grid.actors_in_grid[index]
+				grid.leader_actor.become_a_leader(True)
 				grid.leader_actor.nearest_neighbour = None
 
 				if actor_num > 1:
 					idx = random.choice(range(actor_num - 1))
 					if idx == index:
-						actor = grid.actors[-1]
+						actor = grid.actors_in_grid[-1]
 					else:
-						actor = grid.actors[idx]
+						actor = grid.actors_in_grid[idx]
 
 			if not actor:
-				actor = grid.get_nearest_grid_actor()
+				actor = grid.get_nearest_actor()
 
 			if actor:
 				grid.leader_actor.nearest_neighbour = actor
@@ -162,7 +165,7 @@ class Scene(Singleton):
 			return
 
 		index_x, index_y = Grid.pos_to_grid(pos_x, pos_y)
-		grid = self.get_grid(index_x, index_y)
+		grid = self.grids[index_x][index_y]
 		grid.pick()
 		self.picked_grid = grid
 
@@ -172,4 +175,7 @@ class Scene(Singleton):
 		for actor in self.actors:
 			actor.draw()
 
-		DebugModule and DebugModule.DebugDraw.show_neighbours(self.picked_actor)
+		if DebugModule:
+			if self.picked_actor:
+				DebugModule.DebugDraw.show_neighbours(self.picked_actor)
+				DebugModule.DebugDraw.show_target(self.picked_actor)

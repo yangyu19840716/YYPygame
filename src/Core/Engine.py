@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
-import time
 import pygame
+import time
 from Core import Const
 from Core.Singleton import Singleton
 
@@ -77,6 +77,17 @@ class Engine(Singleton):
 		else:
 			self.pause()
 
+	@staticmethod
+	def cancel():
+		scene = Const.SCENE
+		if scene.picked_actor:
+			scene.picked_actor.unpick()
+			scene.picked_actor = None
+
+		if scene.picked_grid:
+			scene.picked_grid.unpick()
+			scene.picked_grid = None
+
 	def pause(self):
 		self.is_pause = True
 		self._logic = do_nothing
@@ -94,6 +105,10 @@ class Engine(Singleton):
 		for event in keys_up:
 			if event.key == pygame.K_SPACE:
 				self.pause_or_resume()
+				return
+			if event.key == pygame.K_ESCAPE:
+				self.cancel()
+				return
 
 		# 鼠标处理
 		if self.mouse_start_pos is None:
