@@ -12,6 +12,7 @@ class Grid:
 	# 格子大小使用整型，提高格子计算效率
 	grid_size_w = Const.GRID_SIZE
 	grid_size_h = Const.GRID_SIZE
+	neighbour_offset_groups = None
 
 	def __init__(self):
 		self.index_x = None
@@ -20,22 +21,30 @@ class Grid:
 		self.right_bottom = Vector2()
 		self.grid_pos = Vector2()
 		self.actors_in_grid = []
-		self.grid_neighbours = []  	# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
-		self.leader_actor = None    # actor
-		self.grid_dirty = True		# actors 改变时 grid dirty
+		self.grid_neighbours = []  		# [(dis 1, grid list 1), (dis 2, grid list 2), ...] neighbour按距离分组
+		self.leader_actor = None    	# actor
+		self.assistant_actor = None		# actor
+		self.grid_dirty = True			# actors 改变时 grid dirty
 		self.picked = False
+		self.left = 0
+		self.right = 0
+		self.top = 0
+		self.bottom = 0
 
 		self.init_neighbours = self.init_neighbours_round
 
 	def init_pos(self, x, y):
 		self.index_x, self.index_y = x, y
-		self.left_top.x, self.left_top.y = x * Grid.grid_size_w, y * Grid.grid_size_h
-		self.right_bottom.x, self.right_bottom.y = (x + 1) * Grid.grid_size_w, (y + 1) * Grid.grid_size_h
-		self.grid_pos.x, self.grid_pos.y = (x + 0.5) * Grid.grid_size_w, (y + 0.5) * Grid.grid_size_w,
+		self.left = x * Grid.grid_size_w
+		self.top = y * Grid.grid_size_h
+		self.right = (x + 1) * Grid.grid_size_w
+		self.bottom = (y + 1) * Grid.grid_size_h
+		self.left_top.x, self.left_top.y = self.left, self.top
+		self.right_bottom.x, self.right_bottom.y = self.right, self.bottom
+		self.grid_pos.x, self.grid_pos.y = (x + 0.5) * Grid.grid_size_w, (y + 0.5) * Grid.grid_size_h
 
-	def init_neighbours_square(self):
+	def init_neighbours_square(self, grids, grid_num_w, grid_num_h):
 		x, y = self.index_x, self.index_y
-		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
 		gird_in_vision = int(Const.VISION_SIZE / Const.GRID_SIZE) + 1
 		for i in range(1, gird_in_vision):
 			neighbours = []
@@ -46,11 +55,11 @@ class Grid:
 
 				yyy = y - i
 				if yyy >= 0:
-					grid = Const.SCENE.grids[xxx][yyy]
+					grid = grids[xxx][yyy]
 					neighbours.append(grid)
 				yyy = y + i
 				if yyy < grid_num_h:
-					grid = Const.SCENE.grids[xxx][yyy]
+					grid = grids[xxx][yyy]
 					neighbours.append(grid)
 			for yy in range(-i + 1, i):
 				yyy = y + yy
@@ -59,45 +68,47 @@ class Grid:
 
 				xxx = x - i
 				if xxx >= 0:
-					grid = Const.SCENE.grids[xxx][yyy]
+					grid = grids[xxx][yyy]
 					neighbours.append(grid)
 				xxx = x + i
 				if xxx < grid_num_w:
-					grid = Const.SCENE.grids[xxx][yyy]
+					grid = grids[xxx][yyy]
 					neighbours.append(grid)
 
 			self.grid_neighbours.append((i, neighbours))
 
-	def init_neighbours_round(self):
-		scene = Const.SCENE
+	def init_neighbours_round(self, grids, grid_num_w, grid_num_h):
 		vision_size = Const.VISION_SIZE
-		grid_in_vision = int(vision_size / Const.GRID_SIZE) + 1
-		grid_num_w, grid_num_h = Const.SCENE.grid_num_w, Const.SCENE.grid_num_h
-		vision2 = vision_size * vision_size
-		visions = range(-grid_in_vision + 1, grid_in_vision)
 		merge_precision = 1.0 / MERGE_PRECISION
-		neighbours = {}
-		for i in visions:
-			for j in visions:
-				if i == 0 and j == 0:
-					continue
 
-				x = self.index_x + i
-				y = self.index_y + j
+		if Grid.neighbour_offset_groups is None:
+			grid_in_vision_w = int(vision_size / Grid.grid_size_w) + 1
+			grid_in_vision_h = int(vision_size / Grid.grid_size_h) + 1
+			groups = {}
+			for di in range(-grid_in_vision_w + 1, grid_in_vision_w):
+				for dj in range(-grid_in_vision_h + 1, grid_in_vision_h):
+					if di == 0 and dj == 0:
+						continue
+					dx = di * Grid.grid_size_w
+					dy = dj * Grid.grid_size_h
+					dis2 = dx * dx + dy * dy
+					if dis2 <= vision_size * vision_size:
+						key = int(dis2 * merge_precision)
+						groups.setdefault(key, []).append((di, dj))
+			Grid.neighbour_offset_groups = sorted(groups.items(), key=lambda x: x[0])
+
+		neighbours = []
+		for key, offset_list in Grid.neighbour_offset_groups:
+			group = []
+			for di, dj in offset_list:
+				x = self.index_x + di
+				y = self.index_y + dj
 				if x < 0 or y < 0 or x >= grid_num_w or y >= grid_num_h:
 					continue
-
-				grid = scene.grids[x][y]
-				dis2 = (grid.grid_pos - self.grid_pos).length_squared()
-				if dis2 <= vision2:
-					key_dis = int(dis2 * merge_precision)
-					neighbour_list = neighbours.get(key_dis, None)
-					if neighbour_list:
-						neighbour_list.append(grid)
-					else:
-						neighbours[key_dis] = [grid]
-
-		self.grid_neighbours = Utility.sorted_dict_by_key(neighbours)
+				group.append(grids[x][y])
+			if group:
+				neighbours.append((key, group))
+		self.grid_neighbours = neighbours
 
 	@staticmethod
 	def pos_to_grid(x, y):

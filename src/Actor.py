@@ -40,6 +40,7 @@ class Actor:
 		self.my_leader = None				# 通常为
 		# self.grid_followers = []  		# grid list, 被 leader 指定为 nearest_neighbour, 改变 grid 的时候重置
 		self.is_leader = False  			# 被 grid 指定为 leader_actor, 改变 grid 的时候重置
+		self.is_assistant = False			# 被 grid 指定为 assistant_actor, 改变 grid 的时候重置
 		self.grid = None
 		self.actor_dirty = True  			# 位置改变会 dirty
 		self.picked = False
@@ -116,62 +117,52 @@ class Actor:
 		self.actor_speed_dir.normalize()
 
 	# 根据目标距离更新速度，目标远加速，直到速度上限，距离近减速
-	def update_speed(self, length_squared):
-		dis2_f = 0.04
-		speed_f = 0.5
-
-		if self.actor_speed > 0 and length_squared / (self.actor_speed * self.actor_speed) < dis2_f:
-			self.actor_speed *= speed_f
+	def update_speed(self, length_squared, dt):
+		if self.actor_speed > 0 and length_squared < 0.04 * (self.actor_speed * self.actor_speed):
+			self.actor_speed *= 0.5
 		else:
-			self.actor_speed += SPEED_ACC_RATE * Const.ENGINE.frame_time
+			self.actor_speed += SPEED_ACC_RATE * dt
 
 		if self.actor_speed > MAX_SPEED:
 			self.actor_speed = MAX_SPEED
 
-	def update(self):
+	def update(self, dt):
 		if self.target_pos is None:
 			return
 
-		dt = Const.ENGINE.frame_time
+		# Calculate potential movement
+		move_vec = self.actor_speed_dir * (self.actor_speed * dt)
+		
+		# Apply movement
+		self.actor_pos += move_vec
+		
+		# Boundary wrap
+		self.actor_pos.x %= Const.WIDTH
+		self.actor_pos.y %= Const.HEIGHT
 
-		self.actor_pos.x = self.actor_pos.x + self.actor_speed_dir.x * self.actor_speed * dt
-		self.actor_pos.y = self.actor_pos.y + self.actor_speed_dir.y * self.actor_speed * dt
-		dx = self.actor_pos.x - self.draw_pos.x
-		dy = self.actor_pos.y - self.draw_pos.y
-		d2 = dx * dx + dy * dy
-
+		# Target direction and distance
 		target_dir = self.target_pos - self.actor_pos
 		dis2 = target_dir.length_squared()
 
-		if d2 > dis2:
-			self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y = self.target_pos.x, self.target_pos.y
-			self.actor_speed_dir.x = self.actor_speed_dir.y = 0
-			# self.speed_dir_n.x = self.speed_dir_n.y = 0
+		# Check if reached target
+		if move_vec.length_squared() > dis2:
+			self.actor_pos = Vector2(self.target_pos)
+			self.draw_pos = Vector2(self.target_pos)
+			self.actor_speed_dir = Vector2(0, 0)
 			self.actor_speed = 0
 			self.target_pos = None
 			self.actor_dirty = True
-
 			self.rand_target()
 			return
 
-		if self.actor_pos.x > Const.WIDTH:
-			self.actor_pos.x -= int(self.actor_pos.x / Const.WIDTH) * Const.WIDTH
-		elif self.actor_pos.x < 0:
-			self.actor_pos.x += (int(-self.actor_pos.x / Const.WIDTH) + 1) * Const.WIDTH
-		if self.actor_pos.y > Const.HEIGHT:
-			self.actor_pos.y -= int(self.actor_pos.y / Const.HEIGHT) * Const.HEIGHT
-		elif self.actor_pos.y < 0:
-			self.actor_pos.y += (int(-self.actor_pos.y / Const.HEIGHT) + 1) * Const.HEIGHT
-
-		if d2 > 0.5:
-			# 小于一个像素不移动
-			self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y
+		# Fix: Use cumulative distance from last draw position instead of single-frame delta
+		# This ensures movement is visible even at very high FPS where single-frame delta is tiny
+		if (self.actor_pos - self.draw_pos).length_squared() > 0.04:
+			self.draw_pos = Vector2(self.actor_pos)
 			self.actor_dirty = True
 
 		if dis2 > 0:
-			# if Actor.RAND_SPEED_DIR:
-			# 	self.rand_speed(target_dir)
-			self.update_speed(dis2)
+			self.update_speed(dis2, dt)
 
 	def in_actor(self, x, y):
 		size = SIZE + PICK_SIZE_EXTEND
@@ -187,14 +178,20 @@ class Actor:
 		self.picked = False
 
 	def draw(self):
-		w = 2
-		if self.is_leader:
-			w = 4
-		Graph.draw_circle(self.draw_pos, self.draw_size, w, self.draw_color)
+		width = 4 if self.is_leader else 2
+		pygame.draw.circle(Graph.screen, self.draw_color, self.draw_pos, self.draw_size, width)
 
 	def get_neighbours_from_grid(self):
 		neighbours = list(self.grid.actors_in_grid)
+		main_grid_actor_num = len(neighbours)
+		has_assistant = main_grid_actor_num > 1
+		assistant_range = 0
+		assistant_dis = None
+		if len(self.grid.grid_neighbours):
+			assistant_dis = self.grid.grid_neighbours[0]
 		for neighbour_grids in self.grid.grid_neighbours:
+			if assistant_dis == neighbour_grids[0]:
+				assistant_range += len(neighbour_grids[1])
 			for neighbour_grid in neighbour_grids[1]:
 				neighbours.extend(neighbour_grid.actors_in_grid)
 

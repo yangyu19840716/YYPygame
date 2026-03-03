@@ -5,7 +5,7 @@ import random
 from Core import Const
 from Actor import Actor
 from Core.Singleton import Singleton
-from Core.Engine import Engine, DebugModule
+from Core.Engine import Engine
 from Grid import Grid
 import Rule
 # from RuleManager import RuleManager
@@ -14,8 +14,6 @@ import Rule
 class Scene(Singleton):
 	def __init__(self):
 		super(Scene, self).__init__()
-
-		Const.SCENE = self
 
 		self.map_w = Const.WIDTH
 		self.map_h = Const.HEIGHT
@@ -41,7 +39,7 @@ class Scene(Singleton):
 		for x in range(self.grid_num_w):
 			for y in range(self.grid_num_h):
 				grid = self.grids[x][y]
-				grid.init_neighbours()
+				grid.init_neighbours(self.grids, self.grid_num_w, self.grid_num_h)
 				self.grid_to_update.append(grid)
 
 		self.actor_num = Const.ACTOR_NUM
@@ -61,41 +59,42 @@ class Scene(Singleton):
 	def get_grid(self, index_x, index_y):
 		return self.grids[index_x][index_y]
 
-	def update(self):
-		self.update_actors()
+	def update(self, dt):
+		self.update_actors(dt)
 		self.update_grids()
 
-	def update_actors(self):
+	def update_actors(self, dt):
 		# 更新 actor
 		for actor in self.actors:
-			actor.update()
+			actor.update(dt)
 			if not actor.actor_dirty:
 				continue
 
-			x, y = int(actor.actor_pos.x / Grid.grid_size_w), int(actor.actor_pos.y / Grid.grid_size_h)
 			grid = actor.grid
-			new_grid = self.grids[x][y]
-			if grid != new_grid:
-				grid.actors_in_grid.remove(actor)
-				if not grid.grid_dirty:
-					self.grid_to_update.append(grid)
-					grid.grid_dirty = True
+			# Fast check: skip if still within current grid (using pre-calculated boundaries)
+			if grid and grid.left < actor.actor_pos.x < grid.right and \
+			   grid.top < actor.actor_pos.y < grid.bottom:
+				# Even if within grid, we keep dirty=True so that draw_pos updates are respected
+				continue
 
-				# for follower in actor.grid_followers:
-				# 	if not follower.leader_actor:
-				# 		continue
-				#
-				# 	follower.leader_actor.nearest_neighbour = None
-				# 	if follower.dirty:
-				# 		continue
-				#
-				# 	follower.dirty = True
-				# 	self.grid_to_update.append(follower)
-				# actor.grid_followers = []
+			# Calculate new grid index only when boundary is crossed
+			x, y = Grid.pos_to_grid(actor.actor_pos.x, actor.actor_pos.y)
+			new_grid = self.grids[x][y]
+			
+			if grid != new_grid:
+				if grid:
+					grid.actors_in_grid.remove(actor)
+					if not grid.grid_dirty:
+						self.grid_to_update.append(grid)
+						grid.grid_dirty = True
 
 				if actor.is_leader:
 					grid.leader_actor = None
 					actor.is_leader = False
+
+				if actor.is_assistant:
+					grid.assistant_actor = None
+					actor.is_assistant = False
 
 				new_grid.actors_in_grid.append(actor)
 				if not new_grid.grid_dirty:
@@ -104,6 +103,7 @@ class Scene(Singleton):
 
 				actor.grid = new_grid
 
+			# Reset dirty flag after processing all logic for this frame
 			actor.actor_dirty = False
 
 	def update_grids(self):
@@ -112,19 +112,37 @@ class Scene(Singleton):
 			actor_num = len(grid.actors_in_grid)
 			if actor_num == 0:
 				grid.leader_actor = None
+				grid.assistant_actor = None
 				continue
 
-			if not grid.leader_actor:
-				if actor_num > 1:
-					idx = random.choice(range(actor_num))
-					if idx != 0:
-						grid.actors_in_grid[0], grid.actors_in_grid[idx] = grid.actors_in_grid[idx], grid.actors_in_grid[0]
+			# Deterministic leader/assistant selection by proximity to grid center
+			center = grid.grid_pos
+			sorted_actors = sorted(grid.actors_in_grid, key=lambda a: (a.actor_pos - center).length_squared())
+			# reset previous flags
+			if grid.leader_actor:
+				grid.leader_actor.is_leader = False
+			if grid.assistant_actor:
+				grid.assistant_actor.is_assistant = False
+			grid.leader_actor = sorted_actors[0]
+			grid.leader_actor.is_leader = True
+			if actor_num > 1:
+				grid.assistant_actor = sorted_actors[1]
+				grid.assistant_actor.is_assistant = True
+			else:
+				grid.assistant_actor = None
 
-				grid.leader_actor = grid.actors_in_grid[0]
-				grid.leader_actor.is_leader = True
-
+		from Core.Engine import DebugModule
 		DebugModule and DebugModule.DebugDraw.add_dirty_grid(self.grid_to_update)
 		self.grid_to_update = []
+
+	def cancel(self):
+		if self.picked_actor:
+			self.picked_actor.unpick()
+			self.picked_actor = None
+
+		if self.picked_grid:
+			self.picked_grid.unpick()
+			self.picked_grid = None
 
 	def pick(self):
 		if not Engine.instance.is_pause:
@@ -154,6 +172,7 @@ class Scene(Singleton):
 		self.picked_grid = grid
 
 	def draw(self):
+		from Core.Engine import DebugModule
 		DebugModule and DebugModule.DebugDraw.show_grid(self, Grid.grid_size_w, Grid.grid_size_h)
 
 		for actor in self.actors:

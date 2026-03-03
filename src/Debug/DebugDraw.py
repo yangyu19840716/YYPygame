@@ -1,29 +1,40 @@
 # -*- coding:utf-8 -*-
 
 import time
+from collections import deque
 from Core import Const
 from Core.Graph import Graph
 
+
 # ======================================= show_fps ==========================================
-FPS_AVG_FRAME_NUM = 10  # FPS 多少帧刷新一次。 取均值。
+FPS_AVG_FRAME_NUM = 100  # 统计窗口大小
 FPS_LINE = 0
 MSG_LINE = 1
 
-_crt_frame = 0
-_last_frame_time = 0
-_frames_time = 0
-
+_frame_times = deque(maxlen=FPS_AVG_FRAME_NUM)
+_last_time = time.time()
+_last_display_time = 0.0
+_fps_msg = ''
 
 def show_fps():
-	global _crt_frame, _last_frame_time, _frames_time
-	_crt_frame += 1
-	crt_frame = _crt_frame % FPS_AVG_FRAME_NUM
-	if crt_frame == 1:
-		t = time.time()
-		_frames_time = t - _last_frame_time
-		_last_frame_time = t
+	global _last_time, _last_display_time, _fps_msg
+	current_time = time.time()
+	dt = current_time - _last_time
+	_last_time = current_time
+	if dt <= 0:
+		dt = 1e-6
+	_frame_times.append(dt)
+	if current_time - _last_display_time >= 1.0:
+		avg_dt = sum(_frame_times) / len(_frame_times) if _frame_times else 0.0
+		avg_fps = (1.0 / avg_dt) if avg_dt > 0 else 0.0
+		fps_values = [1.0 / t for t in _frame_times if t > 0]
+		min_fps = min(fps_values) if fps_values else 0.0
+		max_fps = max(fps_values) if fps_values else 0.0
+		_fps_msg = "FPS - Avg: %.1f | Min: %.1f | Max: %.1f" % (avg_fps, min_fps, max_fps)
+		
+		_last_display_time = current_time
 
-	Graph.draw_line_text("AVG FPS: %.2f" % (FPS_AVG_FRAME_NUM / float(_frames_time)), FPS_LINE)
+	Graph.draw_line_text(_fps_msg, FPS_LINE)
 
 
 def show_msg():
@@ -48,11 +59,15 @@ def show_neighbours(actor):
 
 	neighbours = actor.get_neighbours_from_grid()
 	if neighbours:
-		for neighbour in neighbours[1:]:
+		for neighbour in neighbours:
 			Graph.draw_line(actor.actor_pos, neighbour.actor_pos, 2, NEIGHBOURS_COLOR)
 
+		ref_actor = neighbours[0]
+		if actor.is_leader and len(neighbours) > 1:
+			ref_actor = neighbours[1]
+
 		# 最后画这个防止被覆盖
-		Graph.draw_line(actor.actor_pos, neighbours[0].actor_pos, 2, NEAREST_NEIGHBOUR_COLOR)
+		Graph.draw_line(actor.actor_pos, ref_actor.actor_pos, 2, NEAREST_NEIGHBOUR_COLOR)
 
 
 def show_target(actor):
@@ -117,7 +132,8 @@ def show_dirty_grid():
 
 
 def show_grid(scene, grid_size_w, grid_size_h):
-	if not Const.ENGINE.is_pause:
+	from Core.Engine import Engine
+	if not Engine.instance.is_pause:
 		return
 
 	show_grid_line(scene, grid_size_w, grid_size_h)

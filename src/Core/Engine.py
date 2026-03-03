@@ -3,6 +3,7 @@
 import pygame
 import time
 from Core import Const
+from Core.Graph import Graph
 from Core.Singleton import Singleton
 
 L_MOUSE_BUTTON = 1
@@ -10,19 +11,18 @@ M_MOUSE_BUTTON = 2
 R_MOUSE_BUTTON = 3
 
 
-def get_debug_module():
-	try:
-		import Debug
-		Debug.import_all()
-		return Debug
-	except ImportError:
-		print('DebugModule is disabled.')
-		# import traceback
-		# traceback.print_exc()
-		return None
+DebugModule = None
 
-
-DebugModule = get_debug_module()
+def ensure_debug_module():
+	global DebugModule
+	if DebugModule is None:
+		try:
+			import Debug
+			Debug.import_all()
+			DebugModule = Debug
+		except (ImportError, AttributeError) as e:
+			print(f'DebugModule is disabled: {e}')
+			DebugModule = None
 
 
 # noinspection PyUnusedLocal
@@ -54,15 +54,13 @@ class Engine(Singleton):
 
 		self._lock_fps = do_nothing
 		self.pick = do_nothing
+		self.cancel_callback = do_nothing
 
-	def init(self):
+	def init_display(self):
 		self.screen = pygame.display.set_mode((self.screen_width, self.screen_height))
+		Graph.init(self.screen)
 
-		# self.screen.fill(self.bg_color)
-
-		Const.ENGINE = self
-		Const.SCREEN = self.screen
-
+	def init_ticks(self):
 		self._logic = self.logic_tick
 		self._draw = self.draw_tick
 		if self.frame_lock:
@@ -77,17 +75,6 @@ class Engine(Singleton):
 		else:
 			self.pause()
 
-	@staticmethod
-	def cancel():
-		scene = Const.SCENE
-		if scene.picked_actor:
-			scene.picked_actor.unpick()
-			scene.picked_actor = None
-
-		if scene.picked_grid:
-			scene.picked_grid.unpick()
-			scene.picked_grid = None
-
 	def pause(self):
 		self.is_pause = True
 		self._logic = do_nothing
@@ -97,28 +84,21 @@ class Engine(Singleton):
 		self._logic = self.logic_tick
 
 	def _input_process(self):
-		keys_up = pygame.event.get(pygame.KEYUP)
-		mouse_keys_down = pygame.event.get(pygame.MOUSEBUTTONDOWN)
-		mouse_keys_up = pygame.event.get(pygame.MOUSEBUTTONUP)
-
-		# 按键处理，响应up防止重复触发。
-		for event in keys_up:
-			if event.key == pygame.K_SPACE:
-				self.pause_or_resume()
-				return
-			if event.key == pygame.K_ESCAPE:
-				self.cancel()
-				return
-
-		# 鼠标处理
-		if self.mouse_start_pos is None:
-			for event in mouse_keys_down:
+		# Unified event processing to keep queue healthy at high FPS
+		events = pygame.event.get()
+		for event in events:
+			if event.type == pygame.KEYUP:
+				if event.key == pygame.K_SPACE:
+					self.pause_or_resume()
+					return
+				elif event.key == pygame.K_ESCAPE:
+					self.cancel_callback()
+					return
+			elif event.type == pygame.MOUSEBUTTONDOWN:
 				if event.button == L_MOUSE_BUTTON:
 					self.mouse_end_pos = None
 					self.mouse_start_pos = event.pos
-
-		if self.mouse_end_pos is None:
-			for event in mouse_keys_up:
+			elif event.type == pygame.MOUSEBUTTONUP:
 				if event.button == L_MOUSE_BUTTON:
 					self.mouse_end_pos = event.pos
 					self.mouse_start_pos = None
@@ -132,13 +112,19 @@ class Engine(Singleton):
 			crt_t = time.time()
 			self.frame_time = crt_t - self.last_time
 			self.last_time = crt_t
+			# Clamp dt to avoid extreme spikes/underflows at uncapped FPS
+			if self.frame_time < 1e-6:
+				self.frame_time = 1e-6
+			elif self.frame_time > 0.05:
+				self.frame_time = 0.05
 
 			self._input_process()
 
-			self._logic()
+			self._logic(self.frame_time)
 
 			self.screen.fill(self.bg_color)
 			self._draw()
+			ensure_debug_module()
 			DebugModule and DebugModule.DebugDraw.show_debug_text()
 			pygame.display.flip()
 

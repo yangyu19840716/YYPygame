@@ -6,24 +6,25 @@ from Core.Engine import Engine
 from Scene import Scene
 
 BG_COLOR = (64, 64, 64)
-FPS = 60.0
+FPS = 0
 
 
 class Game(Singleton):
 	def __init__(self):
 		super(Game, self).__init__()
 
-		Const.GAME = self
 		engine = Engine()
 		engine.bg_color = BG_COLOR
+		engine.init_display()
 
 		self.scene = Scene()
 
 		engine.logic_tick = self.scene.update
 		engine.draw_tick = self.scene.draw
 		engine.pick = self.scene.pick
+		engine.cancel_callback = self.scene.cancel
 		engine.frame_lock = FPS
-		engine.init()
+		engine.init_ticks()
 		# engine.pause()
 
 		self.run = engine.loop

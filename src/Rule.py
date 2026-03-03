@@ -37,10 +37,10 @@ def move_to_target(actor):
 
 @rule_def(Actor, 'MOVE', condition=[is_not_a_leader], exec=Tick)
 def keep_distance(actor):
-	if not actor.nearest_neighbour:
+	if not actor.my_leader:
 		return
 
-	vec = actor.grid_pos - actor.nearest_neighbour.grid_pos
+	vec = actor.grid_pos - actor.my_leader.grid_pos
 	dis = vec.length()
 	new_speed_vec = vec.normalize()
 	speed = MIN_ACTOR_DIS - dis

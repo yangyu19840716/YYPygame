@@ -16,11 +16,7 @@ GRID_SIZE = 30
 VISION_SIZE = 120  # 单位: pixel
 ACTOR_NUM = 200
 
-ENGINE = None
-SCREEN = None
-SCENE = None
-GAME = None
-
+# Path configuration
 ROOT_PATH = os.getcwd() + '/'
-RES_PATH = ROOT_PATH + 'res'
-TMP_PATH = ROOT_PATH + 'tmp'
+RES_PATH = os.path.join(ROOT_PATH, 'res')
+TMP_PATH = os.path.join(ROOT_PATH, 'tmp')
