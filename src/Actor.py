@@ -5,7 +5,6 @@ import random
 from Core import Const, Utility
 from Core.Graph import Graph
 from Core.Math import *
-# from RuleManager import RuleManager
 
 SIZE = 4  							# 单位：pixel
 PICK_SIZE_EXTEND = 2				# 单位：pixel
@@ -26,12 +25,15 @@ class Actor:
 		self.actor_pos = Vector2()
 		self.actor_pos.x, self.actor_pos.y = random.randint(0, Const.WIDTH), random.randint(0, Const.HEIGHT)
 		self.grid_x = self.grid_y = 0
+		self.grid_pos = Vector2()
+		self.update_grid_pos()
 		
-		self.actor_color = Utility.rand_color()
+		self.actor_color = Const.GREEN  # 绿色
 		self.actor_dir_rad = 0  			# random.uniform(0.0, Const.DOUBLE_PI)
 		self.actor_speed = 0  				# random.uniform(0.0, self.max_speed)
 		self.actor_speed_dir = Vector2()  	# self.speed * math.cos(self.dir_rad), self.speed * math.sin(self.dir_rad)
 		# self.speed_dir_n = Vector2()		# speed_dir 垂直方向，为了添加随机波动
+		self.target = None
 		self.target_pos = None
 		self.rand_target()
 
@@ -48,6 +50,13 @@ class Actor:
 		self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y
 		self.draw_color = self.actor_color
 		self.draw_size = SIZE
+
+	def update_grid_pos(self):
+		self.grid_pos.x, self.grid_pos.y = self.actor_pos.x, self.actor_pos.y
+
+	def set_speed_vec(self, speed_vec):
+		self.actor_speed_dir = speed_vec.normalize()
+		self.actor_speed = speed_vec.length()
 
 	def rand_target(self):
 		self.target_pos = Vector2()
@@ -130,6 +139,10 @@ class Actor:
 		if self.target_pos is None:
 			return
 
+		# Process rules
+		from rules import RuleManager
+		RuleManager.process(self, self.rules)
+
 		# Calculate potential movement
 		move_vec = self.actor_speed_dir * (self.actor_speed * dt)
 		
@@ -139,6 +152,9 @@ class Actor:
 		# Boundary wrap
 		self.actor_pos.x %= Const.WIDTH
 		self.actor_pos.y %= Const.HEIGHT
+
+		# Update grid position
+		self.update_grid_pos()
 
 		# Target direction and distance
 		target_dir = self.target_pos - self.actor_pos
@@ -179,7 +195,8 @@ class Actor:
 
 	def draw(self):
 		width = 4 if self.is_leader else 2
-		pygame.draw.circle(Graph.screen, self.draw_color, self.draw_pos, self.draw_size, width)
+		color = Const.RED if self.is_leader else self.draw_color
+		pygame.draw.circle(Graph.screen, color, self.draw_pos, self.draw_size, width)
 
 	def get_neighbours_from_grid(self):
 		neighbours = list(self.grid.actors_in_grid)

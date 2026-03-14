@@ -7,8 +7,8 @@ from Actor import Actor
 from Core.Singleton import Singleton
 from Core.Engine import Engine
 from Grid import Grid
-import Rule
-# from RuleManager import RuleManager
+from rules import Rule
+# from rules.RuleManager import RuleManager
 
 
 class Scene(Singleton):

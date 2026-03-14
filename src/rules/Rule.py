@@ -1,7 +1,7 @@
 # -*- coding:utf-8 -*-
 
 import random
-from RuleManager import rule_def
+from .RuleManager import rule_def
 from Actor import Actor
 
 
@@ -32,7 +32,17 @@ def random_move(actor):
 
 @rule_def(Actor, 'MOVE', property=1)
 def move_to_target(actor):
-	return
+	if not actor.target:
+		return
+
+	vec = actor.target.grid_pos - actor.grid_pos
+	dis = vec.length()
+	if dis < 1:
+		return
+
+	speed_vec = vec.normalize() * actor.actor_speed
+	actor.set_speed_vec(speed_vec)
+	return speed_vec.x, speed_vec.y
 
 
 @rule_def(Actor, 'MOVE', condition=[is_not_a_leader], exec=Tick)

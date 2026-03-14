@@ -5,7 +5,7 @@ from Core.Singleton import Singleton
 from Core.Engine import Engine
 from Scene import Scene
 
-BG_COLOR = (64, 64, 64)
+BG_COLOR = Const.GRAY
 FPS = 0
 
 
