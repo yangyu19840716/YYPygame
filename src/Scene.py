@@ -8,6 +8,7 @@ from Core.Singleton import Singleton
 from Core.Engine import Engine
 from Grid import Grid
 from rules import Rule
+from clustering import ActorClustering
 # from rules.RuleManager import RuleManager
 
 
@@ -26,6 +27,13 @@ class Scene(Singleton):
 		self.picked_grid = None
 
 		self.grid_to_update = []
+
+		# 初始化聚类分析器
+		self.clustering = ActorClustering(eps=100, min_samples=3)
+		
+		# 聚类分析频率控制
+		self.cluster_frame_count = 0
+		self.cluster_interval = 15  # 每15帧执行一次聚类分析，降低leader更新频率
 
 		# Grid 二维数组
 		self.grids = []
@@ -61,6 +69,25 @@ class Scene(Singleton):
 
 	def update(self, dt):
 		self.update_actors(dt)
+		
+		# 控制聚类分析频率
+		self.cluster_frame_count += 1
+		if self.cluster_frame_count >= self.cluster_interval:
+			# 使用聚类分析选择leader
+			clusters, leaders, score = self.clustering.cluster_and_select_leaders(self.actors)
+			
+			# 重置所有Actor的is_leader标志
+			for actor in self.actors:
+				if actor.is_leader:
+					actor.is_leader = False
+			
+			# 设置聚类leader的is_leader标志
+			for leader in leaders:
+				if leader:
+					leader.is_leader = True
+			
+			self.cluster_frame_count = 0
+		
 		self.update_grids()
 
 	def update_actors(self, dt):
@@ -115,19 +142,41 @@ class Scene(Singleton):
 				grid.assistant_actor = None
 				continue
 
-			# Deterministic leader/assistant selection by proximity to grid center
-			center = grid.grid_pos
-			sorted_actors = sorted(grid.actors_in_grid, key=lambda a: (a.actor_pos - center).length_squared())
-			# reset previous flags
+			# 先查找grid中是否有聚类分析选出的leader
+			cluster_leader = None
+			for actor in grid.actors_in_grid:
+				if actor.is_leader:
+					cluster_leader = actor
+					break
+
+			# 重置previous flags
 			if grid.leader_actor:
-				grid.leader_actor.is_leader = False
+				if grid.leader_actor != cluster_leader:
+					grid.leader_actor.is_leader = False
 			if grid.assistant_actor:
 				grid.assistant_actor.is_assistant = False
-			grid.leader_actor = sorted_actors[0]
-			grid.leader_actor.is_leader = True
+
+			# 如果有聚类leader，使用它；否则使用距离中心最近的Actor
+			if cluster_leader:
+				grid.leader_actor = cluster_leader
+			else:
+				# Deterministic leader selection by proximity to grid center
+				center = grid.grid_pos
+				sorted_actors = sorted(grid.actors_in_grid, key=lambda a: (a.actor_pos - center).length_squared())
+				grid.leader_actor = sorted_actors[0]
+				grid.leader_actor.is_leader = True
+
+			# 选择assistant
 			if actor_num > 1:
-				grid.assistant_actor = sorted_actors[1]
-				grid.assistant_actor.is_assistant = True
+				# 从非leader的Actor中选择距离中心最近的作为assistant
+				non_leader_actors = [actor for actor in grid.actors_in_grid if actor != grid.leader_actor]
+				if non_leader_actors:
+					center = grid.grid_pos
+					sorted_non_leaders = sorted(non_leader_actors, key=lambda a: (a.actor_pos - center).length_squared())
+					grid.assistant_actor = sorted_non_leaders[0]
+					grid.assistant_actor.is_assistant = True
+				else:
+					grid.assistant_actor = None
 			else:
 				grid.assistant_actor = None
 

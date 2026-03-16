@@ -8,8 +8,8 @@ from Core.Math import *
 
 SIZE = 4  							# 单位：pixel
 PICK_SIZE_EXTEND = 2				# 单位：pixel
-MAX_SPEED = 100						# 单位：pixel / s
-SPEED_ACC_RATE = 50  				# 单位：pixel / s2
+MAX_SPEED = 30						# 单位：pixel / s (调慢)
+SPEED_ACC_RATE = 15  				# 单位：pixel / s2 (调慢)
 # RAD_ACC_RATE = 0.1  				# 单位：rad / s
 # MAX_SPEED_ACC = MAX_SPEED  		# 单位：pixel / s2
 
