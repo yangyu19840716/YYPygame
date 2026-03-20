@@ -2,9 +2,9 @@
 
 import random
 
-from Core import Const, Utility
-from Core.Graph import Graph
-from Core.Math import *
+from core import const, utility
+from core.graph import Graph
+from core.math import *
 
 SIZE = 4  							# 单位：pixel
 PICK_SIZE_EXTEND = 2				# 单位：pixel
@@ -23,36 +23,44 @@ class Actor:
 		Actor.ACTOR_ID += 1
 		
 		self.actor_pos = Vector2()
-		self.actor_pos.x, self.actor_pos.y = random.randint(0, Const.WIDTH), random.randint(0, Const.HEIGHT)
+		self.actor_pos.x, self.actor_pos.y = random.randint(0, const.WIDTH), random.randint(0, const.HEIGHT)
 		self.grid_x = self.grid_y = 0
 		self.grid_pos = Vector2()
 		self.update_grid_pos()
 		
-		self.actor_color = Const.GREEN  # 绿色
-		self.actor_dir_rad = 0  			# random.uniform(0.0, Const.DOUBLE_PI)
-		self.actor_speed = 0  				# random.uniform(0.0, self.max_speed)
-		self.actor_speed_dir = Vector2()  	# self.speed * math.cos(self.dir_rad), self.speed * math.sin(self.dir_rad)
-		# self.speed_dir_n = Vector2()		# speed_dir 垂直方向，为了添加随机波动
+		self.actor_color = const.GREEN
+		self.actor_dir_rad = 0
+		self.actor_speed = 0
+		self.actor_speed_dir = Vector2()
 		self.target = None
 		self.target_pos = None
 		self.rand_target()
 
 		self.rules = []
 		self.actor_neighbours = []
-		self.my_leader = None				# 通常为
-		# self.grid_followers = []  		# grid list, 被 leader 指定为 nearest_neighbour, 改变 grid 的时候重置
-		self.is_leader = False  			# 被 grid 指定为 leader_actor, 改变 grid 的时候重置
-		self.is_assistant = False			# 被 grid 指定为 assistant_actor, 改变 grid 的时候重置
+		self.my_leader = None
+		self.is_leader = False
+		self.is_assistant = False
 		self.grid = None
-		self.actor_dirty = True  			# 位置改变会 dirty
+		self.actor_dirty = True
 		self.picked = False
 		self.draw_pos = Vector2()
 		self.draw_pos.x, self.draw_pos.y = self.actor_pos.x, self.actor_pos.y
 		self.draw_color = self.actor_color
 		self.draw_size = SIZE
+		
+		self.is_persistent_leader = False
+		self.leader_assignment_time = 0
+		self.assign_persistent_leader()
 
 	def update_grid_pos(self):
 		self.grid_pos.x, self.grid_pos.y = self.actor_pos.x, self.actor_pos.y
+
+	def assign_persistent_leader(self):
+		if random.random() < 0.01:
+			self.is_leader = True
+			self.is_persistent_leader = True
+			self.leader_assignment_time = 0
 
 	def set_speed_vec(self, speed_vec):
 		self.actor_speed_dir = speed_vec.normalize()
@@ -60,7 +68,7 @@ class Actor:
 
 	def rand_target(self):
 		self.target_pos = Vector2()
-		self.target_pos.x, self.target_pos.y = random.randint(0, Const.WIDTH), random.randint(0, Const.HEIGHT)
+		self.target_pos.x, self.target_pos.y = random.randint(0, const.WIDTH), random.randint(0, const.HEIGHT)
 		self.actor_speed_dir = (self.target_pos - self.actor_pos).normalize()
 		# self.speed_dir_n.x, self.speed_dir_n.y = self.speed_dir.y, self.speed_dir.x
 		# self.speed = MAX_SPEED
@@ -136,31 +144,28 @@ class Actor:
 			self.actor_speed = MAX_SPEED
 
 	def update(self, dt):
+		if self.is_persistent_leader:
+			self.leader_assignment_time += dt
+		
 		if self.target_pos is None:
 			return
 
-		# Process rules
-		from rules import RuleManager
-		RuleManager.process(self, self.rules)
+		from rules import RuleRegistry
+		registry = RuleRegistry()
+		registry.execute_rules(self, rule_names=self.rules)
 
-		# Calculate potential movement
 		move_vec = self.actor_speed_dir * (self.actor_speed * dt)
 		
-		# Apply movement
 		self.actor_pos += move_vec
 		
-		# Boundary wrap
-		self.actor_pos.x %= Const.WIDTH
-		self.actor_pos.y %= Const.HEIGHT
+		self.actor_pos.x %= const.WIDTH
+		self.actor_pos.y %= const.HEIGHT
 
-		# Update grid position
 		self.update_grid_pos()
 
-		# Target direction and distance
 		target_dir = self.target_pos - self.actor_pos
 		dis2 = target_dir.length_squared()
 
-		# Check if reached target
 		if move_vec.length_squared() > dis2:
 			self.actor_pos = Vector2(self.target_pos)
 			self.draw_pos = Vector2(self.target_pos)
@@ -171,8 +176,6 @@ class Actor:
 			self.rand_target()
 			return
 
-		# Fix: Use cumulative distance from last draw position instead of single-frame delta
-		# This ensures movement is visible even at very high FPS where single-frame delta is tiny
 		if (self.actor_pos - self.draw_pos).length_squared() > 0.04:
 			self.draw_pos = Vector2(self.actor_pos)
 			self.actor_dirty = True
@@ -195,7 +198,7 @@ class Actor:
 
 	def draw(self):
 		width = 4 if self.is_leader else 2
-		color = Const.RED if self.is_leader else self.draw_color
+		color = const.RED if self.is_leader else self.draw_color
 		pygame.draw.circle(Graph.screen, color, self.draw_pos, self.draw_size, width)
 
 	def get_neighbours_from_grid(self):

@@ -2,9 +2,9 @@
 
 import pygame
 import time
-from Core import Const
-from Core.Graph import Graph
-from Core.Singleton import Singleton
+from core import const
+from core.graph import Graph
+from core.singleton import Singleton
 
 L_MOUSE_BUTTON = 1
 M_MOUSE_BUTTON = 2
@@ -17,9 +17,9 @@ def ensure_debug_module():
 	global DebugModule
 	if DebugModule is None:
 		try:
-			import Debug
-			Debug.import_all()
-			DebugModule = Debug
+			import debug
+			debug.import_all()
+			DebugModule = debug
 		except (ImportError, AttributeError) as e:
 			print(f'DebugModule is disabled: {e}')
 			DebugModule = None
@@ -35,8 +35,8 @@ class Engine(Singleton):
 		super(Engine, self).__init__()
 
 		self.screen = None
-		self.screen_width = Const.SCREEN_W
-		self.screen_height = Const.SCREEN_H
+		self.screen_width = const.SCREEN_W
+		self.screen_height = const.SCREEN_H
 		self.bg_color = (0, 0, 0)
 		self.crt_frame = 0
 		self.crt_time = self.last_time = time.time()

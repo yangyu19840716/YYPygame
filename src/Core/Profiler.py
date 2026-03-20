@@ -3,12 +3,12 @@
 import os
 import time
 import cProfile
-from Core import Const
+from core import const
 
 
 class Profiler:
 	def __init__(self, label='NoLabel'):
-		self.saved_dir = Const.ROOT_PATH + 'tmp/PythonProfiling/'
+		self.saved_dir = const.ROOT_PATH + 'tmp/PythonProfiling/'
 		if not os.path.exists(self.saved_dir):
 			os.makedirs(self.saved_dir)
 

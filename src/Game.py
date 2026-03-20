@@ -1,11 +1,11 @@
 # -*- coding:utf-8 -*-
 
-from Core import Const
-from Core.Singleton import Singleton
-from Core.Engine import Engine
-from Scene import Scene
+from core import const
+from core.singleton import Singleton
+from core.engine import Engine
+from scene import Scene
 
-BG_COLOR = Const.GRAY
+BG_COLOR = const.GRAY
 FPS = 0
 
 

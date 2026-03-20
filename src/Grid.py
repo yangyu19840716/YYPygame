@@ -1,8 +1,8 @@
 # -*- coding:utf-8 -*-
 
 import random
-from Core import Const, Utility
-from Core.Math import Vector2
+from core import const, utility
+from core.math import Vector2
 
 
 MERGE_PRECISION = 0.01
@@ -10,8 +10,8 @@ MERGE_PRECISION = 0.01
 
 class Grid:
 	# 格子大小使用整型，提高格子计算效率
-	grid_size_w = Const.GRID_SIZE
-	grid_size_h = Const.GRID_SIZE
+	grid_size_w = const.GRID_SIZE
+	grid_size_h = const.GRID_SIZE
 	neighbour_offset_groups = None
 
 	def __init__(self):
@@ -45,7 +45,7 @@ class Grid:
 
 	def init_neighbours_square(self, grids, grid_num_w, grid_num_h):
 		x, y = self.index_x, self.index_y
-		gird_in_vision = int(Const.VISION_SIZE / Const.GRID_SIZE) + 1
+		gird_in_vision = int(const.VISION_SIZE / const.GRID_SIZE) + 1
 		for i in range(1, gird_in_vision):
 			neighbours = []
 			for xx in range(-i, i + 1):
@@ -78,7 +78,7 @@ class Grid:
 			self.grid_neighbours.append((i, neighbours))
 
 	def init_neighbours_round(self, grids, grid_num_w, grid_num_h):
-		vision_size = Const.VISION_SIZE
+		vision_size = const.VISION_SIZE
 		merge_precision = 1.0 / MERGE_PRECISION
 
 		if Grid.neighbour_offset_groups is None:
@@ -124,7 +124,7 @@ class Grid:
 		self.picked = True
 
 		for actor in self.actors_in_grid:
-			actor.draw_color = Const.WHITE
+			actor.draw_color = const.WHITE
 
 	def unpick(self):
 		self.picked = False
