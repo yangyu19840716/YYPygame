@@ -5,24 +5,12 @@ import time
 from core import const
 from core.graph import Graph
 from core.singleton import Singleton
+from debug import debug_draw
+
 
 L_MOUSE_BUTTON = 1
 M_MOUSE_BUTTON = 2
 R_MOUSE_BUTTON = 3
-
-
-DebugModule = None
-
-def ensure_debug_module():
-	global DebugModule
-	if DebugModule is None:
-		try:
-			import debug
-			debug.import_all()
-			DebugModule = debug
-		except (ImportError, AttributeError) as e:
-			print(f'DebugModule is disabled: {e}')
-			DebugModule = None
 
 
 # noinspection PyUnusedLocal
@@ -124,8 +112,8 @@ class Engine(Singleton):
 
 			self.screen.fill(self.bg_color)
 			self._draw()
-			ensure_debug_module()
-			DebugModule and DebugModule.DebugDraw.show_debug_text()
+
+			debug_draw.show_debug_text()
 			pygame.display.flip()
 
 			self._lock_fps(self.frame_lock)

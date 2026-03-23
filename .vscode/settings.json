@@ -1,3 +1,6 @@
 {
-    "keyboard.shortcutLayout": "visualstudio"
+    "keyboard.shortcutLayout": "visualstudio",
+    "search.exclude": {
+        "**/*.md": true
+    }
 }

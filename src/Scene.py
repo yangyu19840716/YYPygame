@@ -7,6 +7,8 @@ from actor import Actor
 from core.singleton import Singleton
 from core.engine import Engine
 from grid import Grid
+from config.actor_config import ActorConfig, ActorType
+from debug import debug_draw
 
 
 class Scene(Singleton):
@@ -40,15 +42,18 @@ class Scene(Singleton):
 				grid.init_neighbours(self.grids, self.grid_num_w, self.grid_num_h)
 				self.grid_to_update.append(grid)
 
-		self.actor_num = const.ACTOR_NUM
+		self.actor_num = ActorConfig.ACTOR_NUM
 		self.actors = []
-		for i in range(self.actor_num):
-			actor = Actor()
-			if actor.is_leader:
-				actor.rules.append('LeaderRandomMovementRule')
-			else:
-				actor.rules.append('FollowNearestLeaderRule')
-				actor.rules.append('CollisionAvoidanceRule')
+		
+		leader_count = ActorConfig.get_leader_count()
+		normal_count = ActorConfig.get_normal_count()
+		
+		for i in range(leader_count):
+			actor = Actor(ActorType.LEADER)
+			self.actors.append(actor)
+		
+		for i in range(normal_count):
+			actor = Actor(ActorType.NORMAL)
 			self.actors.append(actor)
 
 		for actor in self.actors:
@@ -138,8 +143,7 @@ class Scene(Singleton):
 			else:
 				grid.assistant_actor = None
 
-		from core.engine import DebugModule
-		DebugModule and DebugModule.DebugDraw.add_dirty_grid(self.grid_to_update)
+		debug_draw.add_dirty_grid(self.grid_to_update)
 		self.grid_to_update = []
 
 	def cancel(self):
@@ -178,13 +182,11 @@ class Scene(Singleton):
 		self.picked_grid = grid
 
 	def draw(self):
-		from core.engine import DebugModule
-		DebugModule and DebugModule.DebugDraw.show_grid(self, Grid.grid_size_w, Grid.grid_size_h)
+		debug_draw.show_grid(self, Grid.grid_size_w, Grid.grid_size_h)
 
 		for actor in self.actors:
 			actor.draw()
 
-		if DebugModule:
-			if self.picked_actor:
-				DebugModule.DebugDraw.show_neighbours(self.picked_actor)
-				DebugModule.DebugDraw.show_target(self.picked_actor)
+		if self.picked_actor:
+			DebugDraw.show_neighbours(self.picked_actor)
+			DebugDraw.show_target(self.picked_actor)
